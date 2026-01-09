@@ -1,0 +1,13 @@
+{
+  "mse": 0.39257754952299184,
+  "r2": 0.3992746294601779,
+  "timestamp_utc": "2026-01-09T12:36:07.000078Z",
+  "experiment": {
+    "model_type": "ridge",
+    "alpha": 1.0,
+    "test_size": 0.2,
+    "use_scaler": true,
+    "k_best": 8,
+    "random_state": 42
+  }
+}
