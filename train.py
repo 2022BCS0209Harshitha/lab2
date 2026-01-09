@@ -35,11 +35,11 @@ def build_model(model_type: str, alpha: float):
 
 def main():
     # ========= Experiment knobs (EDIT THESE MANUALLY FOR EACH EXPERIMENT) =========
-    MODEL_TYPE = "linear"
-    ALPHA = 1.0
+    MODEL_TYPE = "ridge"
+    ALPHA = 0.1
     TEST_SIZE = 0.2
-    USE_SCALER = False
-    K_BEST = 6
+    USE_SCALER = True
+    K_BEST = 8
 
 
     
