@@ -35,10 +35,14 @@ def build_model(model_type: str, alpha: float):
 
 def main():
     # ========= Experiment knobs (EDIT THESE MANUALLY FOR EACH EXPERIMENT) =========
-    MODEL_TYPE = "linear"
-    TEST_SIZE = 0.2
-    USE_SCALER = False
-    K_BEST = 6
+    MODEL_TYPE = "ridge"
+    ALPHA = 0.1
+    TEST_SIZE = 0.3
+    USE_SCALER = True
+    K_BEST = 10
+
+    
+    
            # feature selection: top K numeric features
     RANDOM_STATE = 42
     DATA_PATH = "dataset/winequality-red.csv"
