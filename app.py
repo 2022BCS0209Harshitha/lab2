@@ -1,29 +1,33 @@
 from fastapi import FastAPI
+from pydantic import BaseModel
 import joblib
 import numpy as np
+from typing import List, Optional, Dict, Any
 
 app = FastAPI()
 
 model = joblib.load("model.joblib")
 
-@app.get("/")
-def root():
+class PredictRequest(BaseModel):
+    features: Optional[List[float]] = None
+    # allow alternate payloads too
+    data: Optional[List[float]] = None
+
+@app.post("/predict")
+def predict(req: PredictRequest):
+    vec = req.features or req.data
+    if vec is None:
+        return {
+            "name": "Harshitha",
+            "roll_no": "2022BCS0209",
+            "error": "Please send JSON with key 'features' (or 'data') as a list of 11 numbers."
+        }
+
+    X = np.array(vec, dtype=float).reshape(1, -1)
+    pred = model.predict(X)[0]
+
     return {
         "name": "Harshitha",
         "roll_no": "2022BCS0209",
-        "status": "Wine Quality Prediction API"
-    }
-
-@app.post("/predict")
-def predict(features: dict):
-    """
-    Example input:
-    {
-      "features": [7.4, 0.7, 0.0, 1.9, 0.076, 11.0, 34.0, 0.9978, 3.51, 0.56, 9.4]
-    }
-    """
-    X = np.array(features["features"]).reshape(1, -1)
-    prediction = model.predict(X)[0]
-    return {
-        "wine_quality": int(round(prediction))
+        "wine_quality": int(round(pred))
     }
