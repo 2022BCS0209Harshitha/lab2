@@ -23,21 +23,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Debug - list repo files
+      - name: Debug – show files
         run: |
           pwd
+          echo "=== root ==="
           ls -la
+          echo "=== scripts ==="
           ls -la scripts || true
+          echo "=== dataset ==="
           ls -la dataset || true
 
       - name: Run training
         run: |
           python scripts/train.py
 
-      - name: Debug - list outputs
+      - name: Debug – show outputs
         run: |
-          ls -la
+          echo "=== outputs ==="
           ls -la outputs || true
+          echo "=== results.json ==="
           cat outputs/results.json || true
 
       - name: Upload model + results as artifact
@@ -63,10 +67,13 @@ jobs:
           name: trained_model_artifacts
           path: .
 
-      - name: Debug - list downloaded artifacts
+      - name: Debug – verify downloaded artifacts
         run: |
+          echo "=== root after download ==="
           ls -la
+          echo "=== outputs after download ==="
           ls -la outputs || true
+          echo "=== results.json ==="
           cat outputs/results.json || true
 
       - name: Compare metrics with BEST variables
