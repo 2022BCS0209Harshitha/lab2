@@ -1,33 +1,40 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import List
 import joblib
 import numpy as np
-from typing import List, Optional, Dict, Any
 
-app = FastAPI()
+app = FastAPI(title="Wine Quality Predictor")
 
+# load trained model
 model = joblib.load("model.joblib")
 
+# ✅ this fixes Swagger schema
 class PredictRequest(BaseModel):
-    features: Optional[List[float]] = None
-    # allow alternate payloads too
-    data: Optional[List[float]] = None
+    features: List[float]
+
+@app.get("/")
+def root():
+    return {
+        "name": "Harshitha",
+        "roll_no": "2022BCS0209",
+        "status": "API running"
+    }
 
 @app.post("/predict")
-def predict(req: PredictRequest):
-    vec = req.features or req.data
-    if vec is None:
+def predict(request: PredictRequest):
+    if len(request.features) != 11:
         return {
             "name": "Harshitha",
             "roll_no": "2022BCS0209",
-            "error": "Please send JSON with key 'features' (or 'data') as a list of 11 numbers."
+            "error": "Exactly 11 features required"
         }
 
-    X = np.array(vec, dtype=float).reshape(1, -1)
-    pred = model.predict(X)[0]
+    X = np.array(request.features, dtype=float).reshape(1, -1)
+    prediction = model.predict(X)[0]
 
     return {
         "name": "Harshitha",
         "roll_no": "2022BCS0209",
-        "wine_quality": int(round(pred))
+        "wine_quality": int(round(prediction))
     }
