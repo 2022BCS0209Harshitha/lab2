@@ -23,9 +23,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Debug - list repo files
+        run: |
+          pwd
+          ls -la
+          ls -la scripts || true
+          ls -la dataset || true
+
       - name: Run training
         run: |
           python scripts/train.py
+
+      - name: Debug - list outputs
+        run: |
+          ls -la
+          ls -la outputs || true
+          cat outputs/results.json || true
 
       - name: Upload model + results as artifact
         uses: actions/upload-artifact@v4
@@ -48,7 +61,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: trained_model_artifacts
-          path: outputs
+          path: .
+
+      - name: Debug - list downloaded artifacts
+        run: |
+          ls -la
+          ls -la outputs || true
+          cat outputs/results.json || true
 
       - name: Compare metrics with BEST variables
         id: compare
@@ -56,14 +75,16 @@ jobs:
           BEST_R2: ${{ vars.BEST_R2 }}
           BEST_MSE: ${{ vars.BEST_MSE }}
         run: |
-          echo "Downloaded results:"
-          cat outputs/results.json
-
           CUR_R2=$(python -c "import json;print(json.load(open('outputs/results.json'))['r2'])")
           CUR_MSE=$(python -c "import json;print(json.load(open('outputs/results.json'))['mse'])")
 
           echo "CUR_R2=$CUR_R2" >> $GITHUB_ENV
           echo "CUR_MSE=$CUR_MSE" >> $GITHUB_ENV
+
+          echo "BEST_R2=$BEST_R2"
+          echo "BEST_MSE=$BEST_MSE"
+          echo "CUR_R2=$CUR_R2"
+          echo "CUR_MSE=$CUR_MSE"
 
           python - << 'PY'
           import os
