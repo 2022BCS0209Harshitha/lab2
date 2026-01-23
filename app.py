@@ -1,29 +1,14 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import joblib
-import pandas as pd
+import numpy as np
 
-NAME = "harshitha"
+app = FastAPI(title="Wine Quality Predictor")
+
+NAME = "Harshitha"
 ROLL_NO = "2022BCS0209"
 
-app = FastAPI(title="Wine Quality Prediction API")
-
-model = joblib.load("model.joblib")
-
-# Columns most pipelines use for Wine Quality dataset (original names)
-MODEL_COLS = [
-    "fixed acidity",
-    "volatile acidity",
-    "citric acid",
-    "residual sugar",
-    "chlorides",
-    "free sulfur dioxide",
-    "total sulfur dioxide",
-    "density",
-    "pH",
-    "sulphates",
-    "alcohol",
-]
+model = joblib.load("model.pkl")
 
 class WineFeatures(BaseModel):
     fixed_acidity: float
@@ -38,32 +23,33 @@ class WineFeatures(BaseModel):
     sulphates: float
     alcohol: float
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+@app.get("/")
+def home():
+    return {"status": "ok", "service": "wine-quality-inference"}
 
 @app.post("/predict")
 def predict(features: WineFeatures):
-    # Map API keys -> model expected column names (with spaces)
-    row = {
-        "fixed acidity": features.fixed_acidity,
-        "volatile acidity": features.volatile_acidity,
-        "citric acid": features.citric_acid,
-        "residual sugar": features.residual_sugar,
-        "chlorides": features.chlorides,
-        "free sulfur dioxide": features.free_sulfur_dioxide,
-        "total sulfur dioxide": features.total_sulfur_dioxide,
-        "density": features.density,
-        "pH": features.pH,
-        "sulphates": features.sulphates,
-        "alcohol": features.alcohol,
-    }
+    x = np.array([[
+        features.fixed_acidity,
+        features.volatile_acidity,
+        features.citric_acid,
+        features.residual_sugar,
+        features.chlorides,
+        features.free_sulfur_dioxide,
+        features.total_sulfur_dioxide,
+        features.density,
+        features.pH,
+        features.sulphates,
+        features.alcohol
+    ]], dtype=float)
 
-    X = pd.DataFrame([row], columns=MODEL_COLS)
-    pred = model.predict(X)[0]
+    pred = model.predict(x)[0]
+
+
+    wine_quality = int(round(float(pred)))
 
     return {
         "name": NAME,
         "roll_no": ROLL_NO,
-        "wine_quality": int(round(float(pred)))
+        "wine_quality": wine_quality
     }
