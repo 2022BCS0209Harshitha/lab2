@@ -1,25 +1,69 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import List
 import joblib
-import numpy as np
+import pandas as pd
 
-app = FastAPI(title="Wine Quality Predictor")
+NAME = "harshitha"
+ROLL_NO = "2022BCS0209"
+
+app = FastAPI(title="Wine Quality Prediction API")
 
 model = joblib.load("model.joblib")
 
-class PredictRequest(BaseModel):
-    features: List[float]
+# Columns most pipelines use for Wine Quality dataset (original names)
+MODEL_COLS = [
+    "fixed acidity",
+    "volatile acidity",
+    "citric acid",
+    "residual sugar",
+    "chlorides",
+    "free sulfur dioxide",
+    "total sulfur dioxide",
+    "density",
+    "pH",
+    "sulphates",
+    "alcohol",
+]
 
-@app.get("/")
-def root():
-    return {"name": "Harshitha", "roll_no": "2022BCS0209", "status": "API running"}
+class WineFeatures(BaseModel):
+    fixed_acidity: float
+    volatile_acidity: float
+    citric_acid: float
+    residual_sugar: float
+    chlorides: float
+    free_sulfur_dioxide: float
+    total_sulfur_dioxide: float
+    density: float
+    pH: float
+    sulphates: float
+    alcohol: float
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 @app.post("/predict")
-def predict(req: PredictRequest):
-    if len(req.features) != 11:
-        return {"error": "Exactly 11 values required"}
+def predict(features: WineFeatures):
+    # Map API keys -> model expected column names (with spaces)
+    row = {
+        "fixed acidity": features.fixed_acidity,
+        "volatile acidity": features.volatile_acidity,
+        "citric acid": features.citric_acid,
+        "residual sugar": features.residual_sugar,
+        "chlorides": features.chlorides,
+        "free sulfur dioxide": features.free_sulfur_dioxide,
+        "total sulfur dioxide": features.total_sulfur_dioxide,
+        "density": features.density,
+        "pH": features.pH,
+        "sulphates": features.sulphates,
+        "alcohol": features.alcohol,
+    }
 
-    X = np.array(req.features, dtype=float).reshape(1, -1)
+    X = pd.DataFrame([row], columns=MODEL_COLS)
     pred = model.predict(X)[0]
-    return {"name": "Harshitha", "roll_no": "2022BCS0209", "wine_quality": int(round(pred))}
+
+    return {
+        "name": NAME,
+        "roll_no": ROLL_NO,
+        "wine_quality": int(round(float(pred)))
+    }
