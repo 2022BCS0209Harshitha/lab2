@@ -1,1 +1,123 @@
+name: Lab4 CI-CD
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  train:
+    name: Train (CI)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run training
+        run: |
+          python scripts/train.py
+
+      - name: Upload model + metrics as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained_model_artifacts
+          path: |
+            metrics.json
+            model.pkl
+
+  deploy:
+    name: Deploy (CD)
+    runs-on: ubuntu-latest
+    needs: train
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download trained artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: trained_model_artifacts
+          path: .
+
+      - name: Read metrics and compare with BEST variables
+        id: compare
+        env:
+          BEST_R2: ${{ vars.BEST_R2 }}
+          BEST_MSE: ${{ vars.BEST_MSE }}
+        run: |
+          echo "Current metrics.json:"
+          cat metrics.json
+
+          CUR_R2=$(python -c "import json;print(json.load(open('metrics.json'))['r2'])")
+          CUR_MSE=$(python -c "import json;print(json.load(open('metrics.json'))['mse'])")
+
+          echo "CUR_R2=$CUR_R2" >> $GITHUB_ENV
+          echo "CUR_MSE=$CUR_MSE" >> $GITHUB_ENV
+
+          echo "Best so far: R2=$BEST_R2, MSE=$BEST_MSE"
+          echo "Current  : R2=$CUR_R2, MSE=$CUR_MSE"
+
+          python - << 'PY'
+          import os
+          best_r2 = float(os.environ["BEST_R2"])
+          best_mse = float(os.environ["BEST_MSE"])
+          cur_r2  = float(os.environ["CUR_R2"])
+          cur_mse = float(os.environ["CUR_MSE"])
+
+          improved = (cur_r2 > best_r2) and (cur_mse < best_mse)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            f.write(f"improved={'true' if improved else 'false'}\n")
+          PY
+
+      - name: Stop if metric did not improve
+        if: steps.compare.outputs.improved != 'true'
+        run: |
+          echo "2022BCS0209 ---- Metric did not improve"
+          exit 0
+
+      - name: Login to Docker Hub
+        if: steps.compare.outputs.improved == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push Docker image
+        if: steps.compare.outputs.improved == 'true'
+        run: |
+          IMAGE=${{ secrets.DOCKER_USERNAME }}/wine_predict_2022bcs0209:latest
+          docker build -t $IMAGE .
+          docker push $IMAGE
+
+      - name: Update BEST_R2 and BEST_MSE GitHub Variables
+        if: steps.compare.outputs.improved == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          curl -L \
+            -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/$REPO/actions/variables/BEST_R2 \
+            -d "{\"name\":\"BEST_R2\",\"value\":\"${CUR_R2}\"}"
+
+          curl -L \
+            -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/$REPO/actions/variables/BEST_MSE \
+            -d "{\"name\":\"BEST_MSE\",\"value\":\"${CUR_MSE}\"}"
 
