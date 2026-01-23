@@ -82,28 +82,29 @@ jobs:
           BEST_R2: ${{ vars.BEST_R2 }}
           BEST_MSE: ${{ vars.BEST_MSE }}
         run: |
-          CUR_R2=$(python -c "import json;print(json.load(open('outputs/results.json'))['r2'])")
-          CUR_MSE=$(python -c "import json;print(json.load(open('outputs/results.json'))['mse'])")
-
-          echo "CUR_R2=$CUR_R2" >> $GITHUB_ENV
-          echo "CUR_MSE=$CUR_MSE" >> $GITHUB_ENV
-
-          echo "BEST_R2=$BEST_R2"
-          echo "BEST_MSE=$BEST_MSE"
-          echo "CUR_R2=$CUR_R2"
-          echo "CUR_MSE=$CUR_MSE"
-
           python - << 'PY'
-          import os
+          import json, os
+
+          data = json.load(open("outputs/results.json"))
+          cur_r2 = float(data["r2"])
+          cur_mse = float(data["mse"])
+
           best_r2 = float(os.environ["BEST_R2"])
           best_mse = float(os.environ["BEST_MSE"])
-          cur_r2  = float(os.environ["CUR_R2"])
-          cur_mse = float(os.environ["CUR_MSE"])
 
           improved = (cur_r2 > best_r2) and (cur_mse < best_mse)
 
+          # Pass values to next steps
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"improved={'true' if improved else 'false'}\n")
+              f.write(f"cur_r2={cur_r2}\n")
+              f.write(f"cur_mse={cur_mse}\n")
+
+          print("BEST_R2=", best_r2)
+          print("BEST_MSE=", best_mse)
+          print("CUR_R2=", cur_r2)
+          print("CUR_MSE=", cur_mse)
+          print("IMPROVED=", improved)
           PY
 
       - name: Stop if metric did not improve
@@ -136,10 +137,10 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GH_TOKEN" \
             https://api.github.com/repos/$REPO/actions/variables/BEST_R2 \
-            -d "{\"name\":\"BEST_R2\",\"value\":\"${CUR_R2}\"}"
+            -d "{\"name\":\"BEST_R2\",\"value\":\"${{ steps.compare.outputs.cur_r2 }}\"}"
 
           curl -L -X PATCH \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GH_TOKEN" \
             https://api.github.com/repos/$REPO/actions/variables/BEST_MSE \
-            -d "{\"name\":\"BEST_MSE\",\"value\":\"${CUR_MSE}\"}"
+            -d "{\"name\":\"BEST_MSE\",\"value\":\"${{ steps.compare.outputs.cur_mse }}\"}"
