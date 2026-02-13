@@ -28,7 +28,7 @@ pipeline {
             steps {
                 sh '''
                 . venv/bin/activate
-                python train.py
+                python scripts/train.py
                 '''
             }
         }
@@ -51,7 +51,7 @@ pipeline {
                             echo "New model is better. Will build Docker image."
                             env.BUILD_IMAGE = "true"
                         } else {
-                            echo "Model did not improve. Skipping Docker build."
+                            echo "Model did not improve. Skipping Docker build/push."
                             env.BUILD_IMAGE = "false"
                         }
                     }
