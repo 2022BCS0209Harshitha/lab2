@@ -34,14 +34,15 @@ pipeline {
         }
 
         stage('Read Accuracy') {
-            steps {
-                script {
-                    def metrics = readJSON file: 'app/artifacts/metrics.json'
-                    env.CURRENT_ACCURACY = metrics.accuracy.toString()
-                    echo "Current Accuracy: ${env.CURRENT_ACCURACY}"
-                }
-            }
+    steps {
+        script {
+            def metrics = readJSON file: 'outputs/results.json'
+            env.CURRENT_ACCURACY = metrics.r2.toString()
+            echo "Current R2 (used as accuracy): ${env.CURRENT_ACCURACY}"
         }
+    }
+}
+
 
         stage('Compare Accuracy') {
             steps {
@@ -87,9 +88,9 @@ pipeline {
         }
     }
 
-    post {
-        always {
-            archiveArtifacts artifacts: 'app/artifacts/**', allowEmptyArchive: true
-        }
+  post {
+    always {
+        archiveArtifacts artifacts: 'app/artifacts/**, outputs/**', allowEmptyArchive: true
     }
 }
+
