@@ -3,32 +3,35 @@ pipeline {
 
   environment {
     IMAGE = "2022bcs0209harshitha/mlops-app:latest"
-
-    HOST_PORT = "8000"
     CONTAINER_PORT = "8000"
     CONTAINER_NAME = "wine_infer_${env.BUILD_NUMBER}"
+    NET = "jenkins_net_${env.JOB_NAME}"
 
-    // Your app health is GET /
-    HEALTH_URL = "http://127.0.0.1:${HOST_PORT}/"
-
-    // Your predict endpoint
-    PREDICT_URL = "http://127.0.0.1:${HOST_PORT}/predict"
+    // IMPORTANT: use container DNS name inside the same Docker network
+    HEALTH_URL = "http://${CONTAINER_NAME}:${CONTAINER_PORT}/"
+    PREDICT_URL = "http://${CONTAINER_NAME}:${CONTAINER_PORT}/predict"
   }
 
   stages {
 
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Pull Docker Image') {
       steps {
         sh '''
           set -e
-          echo "Pulling image: ${IMAGE}"
           docker pull ${IMAGE}
+        '''
+      }
+    }
+
+    stage('Create Docker Network') {
+      steps {
+        sh '''
+          set -e
+          docker network inspect ${NET} >/dev/null 2>&1 || docker network create ${NET}
         '''
       }
     }
@@ -37,8 +40,8 @@ pipeline {
       steps {
         sh '''
           set -e
-          echo "Starting container ${CONTAINER_NAME}..."
-          docker run -d --rm --name ${CONTAINER_NAME} -p ${HOST_PORT}:${CONTAINER_PORT} ${IMAGE}
+          echo "Starting container ${CONTAINER_NAME} on network ${NET}..."
+          docker run -d --rm --name ${CONTAINER_NAME} --network ${NET} ${IMAGE}
           docker ps | grep ${CONTAINER_NAME}
         '''
       }
@@ -49,7 +52,7 @@ pipeline {
         sh '''
           set -e
           echo "Waiting for readiness at ${HEALTH_URL}..."
-          timeout 60 bash -c 'until [ "$(curl -s -o /dev/null -w "%{http_code}" ${HEALTH_URL})" = "200" ]; do sleep 2; done'
+          timeout 90 bash -c 'until [ "$(curl -s -o /dev/null -w "%{http_code}" ${HEALTH_URL})" = "200" ]; do sleep 2; done'
           echo "Service is READY."
         '''
       }
@@ -59,7 +62,7 @@ pipeline {
       steps {
         sh '''
           set -e
-          echo "VALID request body:"
+          echo "VALID request:"
           cat tests/valid.json
           echo ""
 
@@ -78,25 +81,18 @@ pipeline {
           python3 - << PY
 import json, sys
 body = """$BODY"""
-try:
-    data = json.loads(body)
-except Exception as e:
-    print("FAIL: Response is not valid JSON:", e)
-    sys.exit(1)
+data = json.loads(body)
 
-# Validate required fields returned by your app.py
 for k in ["name", "roll_no", "wine_quality"]:
     if k not in data:
-        print(f"FAIL: Missing key '{k}' in response. Keys:", list(data.keys()))
+        print("FAIL: Missing key", k, "Keys:", list(data.keys()))
         sys.exit(1)
 
-# Validate wine_quality is int
-wq = data["wine_quality"]
-if not isinstance(wq, int):
-    print("FAIL: wine_quality is not int:", type(wq), wq)
+if not isinstance(data["wine_quality"], int):
+    print("FAIL: wine_quality not int:", type(data["wine_quality"]), data["wine_quality"])
     sys.exit(1)
 
-print("PASS: Valid inference OK. wine_quality =", wq, "name =", data["name"], "roll_no =", data["roll_no"])
+print("PASS: wine_quality =", data["wine_quality"], "name =", data["name"], "roll_no =", data["roll_no"])
 PY
         '''
       }
@@ -106,7 +102,7 @@ PY
       steps {
         sh '''
           set -e
-          echo "INVALID request body:"
+          echo "INVALID request:"
           cat tests/invalid.json
           echo ""
 
@@ -117,31 +113,18 @@ PY
           echo "Status Code: $CODE"
           echo "Response Body: $BODY"
 
-          # FastAPI validation usually returns 422 for bad body
           if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 300 ]; then
-            echo "FAIL: Expected error code for invalid request, got 2xx"
+            echo "FAIL: Expected error for invalid request but got 2xx"
             exit 1
           fi
 
           python3 - << PY
-import json, sys
+import json
 body = """$BODY"""
-try:
-    data = json.loads(body)
-except:
-    if not body.strip():
-        print("FAIL: Empty error body")
-        sys.exit(1)
-    print("PASS: Invalid request returned non-JSON error body (acceptable).")
-    sys.exit(0)
-
-# FastAPI error format usually has "detail"
-msg = data.get("detail", "")
-if not msg:
-    print("FAIL: No meaningful error message found.")
-    sys.exit(1)
-
-print("PASS: Invalid request returned meaningful error detail.")
+data = json.loads(body)
+if "detail" not in data:
+    raise SystemExit("FAIL: Expected 'detail' in error response")
+print("PASS: Invalid request produced validation error detail.")
 PY
         '''
       }
@@ -150,7 +133,6 @@ PY
     stage('Stop Container') {
       steps {
         sh '''
-          echo "Stopping container..."
           docker stop ${CONTAINER_NAME} || true
         '''
       }
@@ -160,8 +142,8 @@ PY
   post {
     always {
       sh '''
-        echo "Cleanup: stop container if still running..."
         docker stop ${CONTAINER_NAME} || true
+        docker network rm ${NET} || true
       '''
     }
   }
