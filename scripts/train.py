@@ -107,6 +107,8 @@ def main():
     # Save model
     model_path = "outputs/model.joblib"
     joblib.dump(pipeline, model_path)
+    joblib.dump(pipeline, "model.pkl")
+    print("Saved model to: model.pkl")
 
     # Save results JSON (required)
     results = {
