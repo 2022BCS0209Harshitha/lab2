@@ -1,3 +1,4 @@
 {
-  "wrong_key": "missing required fields"
+  "fixed_acidity": "bad_value",
+  "volatile_acidity": 0.7
 }
