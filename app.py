@@ -3,12 +3,14 @@ from pydantic import BaseModel
 import joblib
 import numpy as np
 
-app = FastAPI(title="Wine Quality Predictor")
+app = FastAPI(title="Wine Quality Prediction API")
 
 NAME = "Harshitha"
 ROLL_NO = "2022BCS0209"
 
-model = joblib.load("model.pkl")
+# IMPORTANT: Dockerfile copies model.joblib into /app/model.joblib
+model = joblib.load("model.joblib")
+
 
 class WineFeatures(BaseModel):
     fixed_acidity: float
@@ -23,9 +25,16 @@ class WineFeatures(BaseModel):
     sulphates: float
     alcohol: float
 
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.get("/")
 def home():
     return {"status": "ok", "service": "wine-quality-inference"}
+
 
 @app.post("/predict")
 def predict(features: WineFeatures):
@@ -44,8 +53,6 @@ def predict(features: WineFeatures):
     ]], dtype=float)
 
     pred = model.predict(x)[0]
-
-
     wine_quality = int(round(float(pred)))
 
     return {
